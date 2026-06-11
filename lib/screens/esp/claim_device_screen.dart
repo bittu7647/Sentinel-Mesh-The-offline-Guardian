@@ -109,9 +109,9 @@ class _ClaimDeviceScreenState extends State<ClaimDeviceScreen> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: AppTheme.error.withOpacity(0.1),
+                            color: AppTheme.error.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppTheme.error.withOpacity(0.5)),
+                            border: Border.all(color: AppTheme.error.withValues(alpha: 0.5)),
                           ),
                           child: Text(
                             _errorMessage,

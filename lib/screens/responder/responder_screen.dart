@@ -174,7 +174,7 @@ class _ResponderScreenState extends State<ResponderScreen> {
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: AppTheme.error, width: 2),
               boxShadow: [
-                BoxShadow(color: AppTheme.error.withOpacity(0.5), blurRadius: 10, spreadRadius: 2),
+                BoxShadow(color: AppTheme.error.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2),
               ],
             ),
             child: Row(
@@ -219,7 +219,7 @@ class _ResponderScreenState extends State<ResponderScreen> {
       backgroundColor: _nearbyAlertActive ? AppTheme.background : AppTheme.background,
       appBar: AppBar(
         title: const Text('My Responder Radar', style: TextStyle(color: Colors.white)), 
-        backgroundColor: _nearbyAlertActive ? AppTheme.error.withOpacity(0.2) : Colors.transparent,
+        backgroundColor: _nearbyAlertActive ? AppTheme.error.withValues(alpha: 0.2) : Colors.transparent,
         leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Colors.white), onPressed: () => Navigator.pop(context)),
       ),
       body: _nearbyAlertActive ? _buildMap() : _buildRadar(),

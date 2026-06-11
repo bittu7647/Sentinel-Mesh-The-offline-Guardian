@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:google_mlkit_pose_detection/google_mlkit_pose_detection.dart';
@@ -83,9 +84,13 @@ class FallDetectionService {
 
     // Need all four landmarks with reasonable confidence
     if (leftShoulder == null || rightShoulder == null ||
-        leftHip == null || rightHip == null) return;
+        leftHip == null || rightHip == null) {
+      return;
+    }
     if (leftShoulder.likelihood < 0.5 || rightShoulder.likelihood < 0.5 ||
-        leftHip.likelihood < 0.5 || rightHip.likelihood < 0.5) return;
+        leftHip.likelihood < 0.5 || rightHip.likelihood < 0.5) {
+      return;
+    }
 
     final avgShoulderY = (leftShoulder.y + rightShoulder.y) / 2.0;
     final avgHipY = (leftHip.y + rightHip.y) / 2.0;

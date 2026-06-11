@@ -1,88 +1,150 @@
+import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
 
 class PlacesService {
-  // Bypassing Google API entirely. Using Overpass API (OpenStreetMap) which is 100% FREE!
-  static Future<List<dynamic>> getNearbyPlaces(double lat, double lng, String type) async {
-    // Map Google types to OpenStreetMap amenity tags
-    String amenity = type == 'police' ? 'police' : 'hospital';
+  // Free Overpass API mirror list - Expanded to "Swarm" size for max reliability
+  static const List<String> _overpassEndpoints = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.osm.ch/api/interpreter',
+    'https://lz4.overpass-api.de/api/interpreter',
+    'https://overpass.n.ey.eus/api/interpreter',
+    'https://z.overpass-api.de/api/interpreter',
+    'https://overpass.openstreetmap.ru/cgi/interpreter',
+    'https://overpass.beandog.org/api/interpreter',
+  ];
+
+  static List<dynamic>? _cachedPolice;
+  static List<dynamic>? _cachedMedical;
+  static DateTime? _lastCacheTime;
+
+  /// Fetches nearby places using a "Global Swarm" approach with Radius Escalation.
+  static Future<List<dynamic>> getNearbyPlaces(double lat, double lng, String type, {Duration? forcedTimeout}) async {
+    if (_isCacheFresh()) {
+      if (type == 'police' && _cachedPolice != null) return _cachedPolice!;
+      if (type == 'hospital' && _cachedMedical != null) return _cachedMedical!;
+    }
+
+    String amenity = (type == 'police') ? 'police' : 'hospital|clinic|doctors';
     
-    // Overpass QL Query: Find amenities within 15000 meters (15km) to ensure enough results
+    // RADIUS ESCALATION:
+    // We try 7km first (fast/relevant). If 0 results, we try 18km (wide net).
+    List<int> radii = [7000, 18000];
+    List<dynamic> bestResults = [];
+
+    for (int radius in radii) {
+      try {
+        final List<Future<List<dynamic>>> requests = _overpassEndpoints.map((url) =>
+          _querySingleEndpoint(url, lat, lng, amenity, radius)
+        ).toList();
+
+        // SWARM SUCCESS: Take the first mirror that finds AT LEAST 1 result.
+        bestResults = await _firstWithData(requests);
+
+        if (bestResults.isNotEmpty) break; // Found something, stop escalating radius
+      } catch (e) {
+        debugPrint("Swarm Tier Failed: $e");
+      }
+    }
+
+    if (bestResults.isNotEmpty) {
+      _updateCache(type, bestResults);
+    }
+
+    return bestResults;
+  }
+
+  /// Custom logic: Wait for the first mirror that actually returns DATA.
+  /// If all mirrors return empty or fail, it eventually returns an empty list.
+  static Future<List<dynamic>> _firstWithData(List<Future<List<dynamic>>> futures) async {
+    final Completer<List<dynamic>> completer = Completer<List<dynamic>>();
+    int completedCount = 0;
+
+    for (var future in futures) {
+      future.then((value) {
+        if (!completer.isCompleted && value.isNotEmpty) {
+          completer.complete(value);
+        }
+      }).catchError((_) {
+        // Ignore mirror-specific errors
+      }).whenComplete(() {
+        completedCount++;
+        // If all mirrors finished and NO ONE found data
+        if (completedCount == futures.length && !completer.isCompleted) {
+          completer.complete([]);
+        }
+      });
+    }
+
+    return completer.future;
+  }
+
+  static bool _isCacheFresh() {
+    if (_lastCacheTime == null) return false;
+    return DateTime.now().difference(_lastCacheTime!).inMinutes < 5;
+  }
+
+  static void _updateCache(String type, List<dynamic> data) {
+    if (data.isEmpty) return;
+    if (type == 'police') {
+      _cachedPolice = data;
+    } else {
+      _cachedMedical = data;
+    }
+    _lastCacheTime = DateTime.now();
+  }
+
+  static Future<List<dynamic>> _querySingleEndpoint(String url, double lat, double lng, String amenity, int radius) async {
     String query = '''
-      [out:json][timeout:25];
-      (
-        node["amenity"="$amenity"](around:15000,$lat,$lng);
-        way["amenity"="$amenity"](around:15000,$lat,$lng);
-        relation["amenity"="$amenity"](around:15000,$lat,$lng);
-      );
+      [out:json][timeout:15];
+      (nwr["amenity"~"$amenity"](around:$radius,$lat,$lng););
       out center;
     ''';
 
-    final String url = 'https://overpass-api.de/api/interpreter';
-    
     try {
-      debugPrint('Overpass API POST Request: $url');
       final response = await http.post(
         Uri.parse(url),
-        headers: {
-          'User-Agent': 'SentinelMeshApp/1.0',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
+        headers: {'User-Agent': 'SentinelMeshApp/1.4', 'Content-Type': 'application/x-www-form-urlencoded'},
         body: {'data': query},
-      );
-      debugPrint('Overpass API HTTP Status: ${response.statusCode}');
-      
+      ).timeout(const Duration(seconds: 25));
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         final elements = data['elements'] as List<dynamic>;
-        
-        List<dynamic> mappedResults = [];
-        
+        List<dynamic> mapped = [];
         for (var element in elements) {
-          // If it's a way/relation, Overpass 'out center' provides center lat/lon
-          double? elementLat = element['lat'] ?? element['center']?['lat'];
-          double? elementLng = element['lon'] ?? element['center']?['lon'];
-          
-          if (elementLat == null || elementLng == null) continue;
+          double? eLat = element['lat'] ?? element['center']?['lat'];
+          double? eLng = element['lon'] ?? element['center']?['lng'];
+          if (eLat == null || eLng == null) continue;
 
-          String name = element['tags']?['name'] ?? 
-                        element['tags']?['name:en'] ?? 
-                        'Unknown $type location';
-
-          // Extract phone number from OSM tags if available
-          String? phone = element['tags']?['phone'] ??
-                          element['tags']?['contact:phone'];
-
-          // Map to Google Places structure so the UI screens don't need any changes!
-          mappedResults.add({
+          mapped.add({
             'place_id': element['id'].toString(),
-            'name': name,
-            'phone': phone,
-            'geometry': {
-              'location': {
-                'lat': elementLat,
-                'lng': elementLng,
-              }
-            }
+            'name': element['tags']?['name'] ?? element['tags']?['name:en'] ?? 'Safety Hub',
+            'phone': element['tags']?['phone'] ?? element['tags']?['contact:phone'],
+            'geometry': {'location': {'lat': eLat, 'lng': eLng}}
           });
         }
-        
-        debugPrint('Overpass API returned ${mappedResults.length} results for $type');
-        return mappedResults;
+
+        mapped.sort((a, b) {
+          double distA = Geolocator.distanceBetween(lat, lng, a['geometry']['location']['lat'], a['geometry']['location']['lng']);
+          double distB = Geolocator.distanceBetween(lat, lng, b['geometry']['location']['lat'], b['geometry']['location']['lng']);
+          return distA.compareTo(distB);
+        });
+
+        return mapped;
       }
-      return [];
-    } catch (e) {
-      debugPrint('Error fetching from Overpass: $e');
-      return [];
-    }
+    } catch (_) {}
+    return [];
   }
 
-  static Future<List<dynamic>> getNearbyPoliceStations(double lat, double lng) async {
-    return getNearbyPlaces(lat, lng, 'police');
+  static Future<List<dynamic>> getNearbyPoliceStations(double lat, double lng, {Duration? forcedTimeout}) async {
+    return getNearbyPlaces(lat, lng, 'police', forcedTimeout: forcedTimeout);
   }
 
-  static Future<List<dynamic>> getNearbyHospitals(double lat, double lng) async {
-    return getNearbyPlaces(lat, lng, 'hospital');
+  static Future<List<dynamic>> getNearbyHospitals(double lat, double lng, {Duration? forcedTimeout}) async {
+    return getNearbyPlaces(lat, lng, 'hospital', forcedTimeout: forcedTimeout);
   }
 }

@@ -39,7 +39,7 @@ void setup() {
   pinMode(IMPACT_SENSOR_PIN, INPUT_PULLUP);
 
   // Initialize BLE
-  BLEDevice::init("Sentinel_ESP");
+  BLEDevice::init("Sentinel");
   
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());

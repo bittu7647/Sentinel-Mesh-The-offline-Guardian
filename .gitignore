@@ -50,3 +50,4 @@ app.*.map.json
 .env
 config.js
 android/app/google-services.json
+ios/Flutter/Env.xcconfig

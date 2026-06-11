@@ -172,7 +172,7 @@ class _SenderScreenState extends State<SenderScreen> {
                   const SizedBox(height: 20),
                   Text(
                     "Background ESP32 Monitoring Active",
-                    style: TextStyle(color: Colors.white.withOpacity(0.7), fontSize: 12),
+                    style: TextStyle(color: Colors.white.withValues(alpha: 0.7), fontSize: 12),
                   ),
                   const SizedBox(height: 20),
                 ],

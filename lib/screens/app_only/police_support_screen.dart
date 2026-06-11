@@ -3,16 +3,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../services/places_service.dart';
-
-class Neon {
-  static const Color bg        = Color(0xFF050508);
-  static const Color surface   = Color(0xFF0D0D12);
-  static const Color cyan      = Color(0xFF00F0FF);
-  static const Color magenta   = Color(0xFFFF2D78);
-  static const Color lime      = Color(0xFF39FF14);
-  static const Color textMain  = Color(0xFFE8E8EC);
-  static const Color textDim   = Color(0xFF6B6B80);
-}
+import '../../theme/app_theme.dart';
 
 class PoliceSupportScreen extends StatefulWidget {
   const PoliceSupportScreen({super.key});
@@ -46,7 +37,23 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
 
       final stations = await PlacesService.getNearbyPoliceStations(
         position.latitude, position.longitude,
+        forcedTimeout: const Duration(seconds: 25),
       );
+
+      if (stations.isEmpty) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text("No police stations found nearby. Please try again later."),
+              backgroundColor: AppTheme.error,
+            ),
+          );
+        }
+        setState(() {
+          _isLoading = false;
+        });
+        return;
+      }
 
       debugPrint("Police API returned ${stations.length} results");
 
@@ -113,7 +120,7 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
     double distanceInKm = distanceInMeters / 1000;
     // ~40 km/h urban average for emergency vehicles
     int etaMinutes = (distanceInKm / 40 * 60).ceil();
-    return "~${etaMinutes} min ETA";
+    return "~$etaMinutes min ETA";
   }
 
   String _formatDistance(double lat, double lng) {
@@ -132,16 +139,16 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
     return Container(
       width: 280,
       margin: const EdgeInsets.only(right: 16),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Neon.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: Neon.cyan.withOpacity(0.3), width: 1),
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(28),
+        border: Border.all(color: AppTheme.accentCyan.withValues(alpha: 0.1), width: 1.5),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 10,
-            offset: const Offset(0, 5),
+            color: Colors.black.withValues(alpha: 0.2),
+            blurRadius: 15,
+            offset: const Offset(0, 8),
           )
         ],
       ),
@@ -151,59 +158,68 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
         children: [
           Row(
             children: [
-              const Icon(Icons.local_police, color: Neon.cyan, size: 24),
-              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: AppTheme.accentCyan.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: const Icon(Icons.local_police_rounded, color: AppTheme.accentCyan, size: 20),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   place['name'] ?? 'Police Station',
-                  style: const TextStyle(color: Neon.textMain, fontWeight: FontWeight.bold, fontSize: 16),
+                  style: const TextStyle(color: AppTheme.textMain, fontWeight: FontWeight.w800, fontSize: 16),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(_formatDistance(lat, lng), style: const TextStyle(color: Neon.textDim, fontSize: 14)),
+              Text(_formatDistance(lat, lng), style: const TextStyle(color: AppTheme.textDim, fontSize: 14, fontWeight: FontWeight.w600)),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Neon.cyan.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
+                  color: AppTheme.accentCyan.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
                   _calculateETA(lat, lng), 
-                  style: const TextStyle(color: Neon.cyan, fontSize: 12, fontWeight: FontWeight.bold)
+                  style: const TextStyle(color: AppTheme.accentCyan, fontSize: 12, fontWeight: FontWeight.w800)
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Row(
             children: [
               Expanded(
-                child: OutlinedButton.icon(
+                child: ElevatedButton.icon(
                   onPressed: () => _callEmergency(place['phone']),
-                  icon: const Icon(Icons.phone, size: 16, color: Neon.textMain),
-                  label: const Text('Call', style: TextStyle(color: Neon.textMain)),
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Neon.textDim),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  icon: const Icon(Icons.phone_rounded, size: 16),
+                  label: const Text('CALL'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppTheme.bg,
+                    foregroundColor: AppTheme.textMain,
+                    side: BorderSide(color: AppTheme.textDim.withValues(alpha: 0.3)),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 10),
               Expanded(
                 child: ElevatedButton.icon(
                   onPressed: () => _navigate(lat, lng),
-                  icon: const Icon(Icons.navigation, size: 16, color: Neon.bg),
-                  label: const Text('Nav', style: TextStyle(color: Neon.bg, fontWeight: FontWeight.bold)),
+                  icon: const Icon(Icons.near_me_rounded, size: 16),
+                  label: const Text('NAV'),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Neon.cyan,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    backgroundColor: AppTheme.accentCyan,
+                    foregroundColor: AppTheme.bg,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                 ),
               ),
@@ -214,19 +230,51 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
     );
   }
 
+  Widget _buildSkeletonCard() {
+    return Container(
+      width: 280,
+      margin: const EdgeInsets.only(right: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(28),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(width: 36, height: 36, decoration: const BoxDecoration(color: Colors.white10, shape: BoxShape.circle)),
+              const SizedBox(width: 12),
+              Container(width: 150, height: 16, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4))),
+            ],
+          ),
+          const Spacer(),
+          Container(width: 80, height: 12, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(4))),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(child: Container(height: 40, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(16)))),
+              const SizedBox(width: 8),
+              Expanded(child: Container(height: 40, decoration: BoxDecoration(color: Colors.white10, borderRadius: BorderRadius.circular(16)))),
+            ],
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Neon.bg,
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('POLICE SUPPORT', style: TextStyle(color: Neon.textMain, fontWeight: FontWeight.w800, letterSpacing: 2)),
-        backgroundColor: Neon.bg,
-        elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back_ios, color: Neon.textMain), onPressed: () => Navigator.pop(context)),
+        title: const Text('POLICE SUPPORT'),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textMain, size: 20), onPressed: () => Navigator.pop(context)),
         actions: [
           IconButton(
-            icon: const Icon(Icons.phone, color: Neon.magenta),
-            onPressed: () => _callEmergency(null), // Fallback to 100
+            icon: const Icon(Icons.phone_in_talk_rounded, color: AppTheme.accentRose),
+            onPressed: () => _callEmergency(null),
           )
         ],
       ),
@@ -243,32 +291,36 @@ class _PoliceSupportScreenState extends State<PoliceSupportScreen> {
               myLocationEnabled: true,
               myLocationButtonEnabled: false,
               zoomControlsEnabled: false,
+              style: '[{"featureType":"all","elementType":"labels.text.fill","stylers":[{"saturation":36},{"color":"#000000"},{"lightness":40}]}]', // Simplified dark style
             )
           else
-            const Center(child: CircularProgressIndicator(color: Neon.cyan)),
+            const Center(child: CircularProgressIndicator(color: AppTheme.accentCyan)),
           
-          if (_isLoading)
-            Container(
-              color: Neon.bg.withOpacity(0.7),
-              child: const Center(child: CircularProgressIndicator(color: Neon.cyan)),
+          // BOTTOM SUGGESTIONS
+          Align(
+            alignment: Alignment.bottomCenter,
+            child: Container(
+              height: 190,
+              margin: const EdgeInsets.only(bottom: 32),
+              child: _isLoading
+                ? ListView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    scrollDirection: Axis.horizontal,
+                    itemCount: 3,
+                    itemBuilder: (context, index) => _buildSkeletonCard(),
+                  )
+                : _policeStations.isEmpty
+                  ? const SizedBox.shrink()
+                  : ListView.builder(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      scrollDirection: Axis.horizontal,
+                      itemCount: _policeStations.length,
+                      itemBuilder: (context, index) {
+                        return _buildPlaceCard(_policeStations[index]);
+                      },
+                    ),
             ),
-
-          if (!_isLoading && _policeStations.isNotEmpty)
-            Align(
-              alignment: Alignment.bottomCenter,
-              child: Container(
-                height: 180,
-                margin: const EdgeInsets.only(bottom: 24),
-                child: ListView.builder(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  scrollDirection: Axis.horizontal,
-                  itemCount: _policeStations.length,
-                  itemBuilder: (context, index) {
-                    return _buildPlaceCard(_policeStations[index]);
-                  },
-                ),
-              ),
-            ),
+          ),
         ],
       ),
     );

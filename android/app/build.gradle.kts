@@ -5,6 +5,17 @@ plugins {
     id("com.google.gms.google-services") 
 }
 
+import java.util.Properties
+import java.io.FileInputStream
+
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localPropertiesFile.reader().use { reader ->
+        localProperties.load(reader)
+    }
+}
+val mapsApiKey = localProperties.getProperty("MAPS_API_KEY") ?: "YOUR_ANDROID_MAPS_API_KEY"
 android {
     namespace = "com.example.sentinel_mesh"
     compileSdk = flutter.compileSdkVersion
@@ -26,11 +37,12 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         
-        minSdk = flutter.minSdkVersion  // <--- 2. CHANGED: Must be 21 for Agora, Google Maps, Geolocator
+        minSdk = 26
         
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+        manifestPlaceholders["mapsApiKey"] = mapsApiKey
     }
 
     buildTypes {

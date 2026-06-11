@@ -9,6 +9,9 @@ dependencies:
   flutter:
     sdk: flutter
 
+  # Navigation
+  go_router: ^14.0.0
+
   # Firebase
   firebase_core: ^2.30.0
   firebase_database: ^10.5.0
@@ -23,14 +26,47 @@ dependencies:
   camera: ^0.10.5
   
   # AI & ML
-  google_generative_ai: ^0.4.0
+  google_generative_ai: ^0.4.6
   google_mlkit_pose_detection: ^0.11.0
+  flutter_dotenv: ^5.1.0
+  
+  # Essential packages
+  flutter_background_service: ^5.1.0
+  flutter_blue_plus: ^1.36.8
+  google_maps_flutter: ^2.14.2
+  shared_preferences: ^2.5.5
+  url_launcher: ^6.3.2
+  google_fonts: ^6.2.1
+  http: ^1.2.0
+  android_intent_plus: ^6.0.0
+  dio: ^5.7.0
+
+  # Animations
+  flutter_animate: ^4.5.0
+  animated_text_kit: ^4.2.3
+  lottie: ^3.1.0
+
+  # UI Utilities
+  shimmer: ^3.0.0
+  cached_network_image: ^3.4.0
+
+  # Sensors (fall detection)
+  sensors_plus: ^5.0.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^3.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
 
 flutter:
   uses-material-design: true
->>>>>>> 9c9d65644c0311b9c6667656d657a69ceff7773c
+  assets:
+    - .env
+    - assets/images/

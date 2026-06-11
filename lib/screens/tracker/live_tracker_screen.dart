@@ -135,7 +135,7 @@ class _LiveTrackerScreenState extends State<LiveTrackerScreen> {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.health_and_safety_outlined, size: 80, color: AppTheme.success.withOpacity(0.5)),
+                          Icon(Icons.health_and_safety_outlined, size: 80, color: AppTheme.success.withValues(alpha: 0.5)),
                           const SizedBox(height: 16),
                           const Text('No emergencies nearby', style: TextStyle(color: AppTheme.success, fontSize: 18, fontWeight: FontWeight.bold)),
                           const Text('The area is clear', style: TextStyle(color: AppTheme.textSecondary)),
@@ -151,12 +151,12 @@ class _LiveTrackerScreenState extends State<LiveTrackerScreen> {
                           padding: const EdgeInsets.only(bottom: 16.0),
                           child: GlassCard(
                             padding: 16,
-                            border: Border.all(color: AppTheme.error.withOpacity(0.5)),
+                            border: Border.all(color: AppTheme.error.withValues(alpha: 0.5)),
                             child: Row(
                               children: [
                                 Container(
                                   padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: AppTheme.error.withOpacity(0.2), shape: BoxShape.circle),
+                                  decoration: BoxDecoration(color: AppTheme.error.withValues(alpha: 0.2), shape: BoxShape.circle),
                                   child: const Icon(Icons.warning, color: AppTheme.error),
                                 ),
                                 const SizedBox(width: 16),

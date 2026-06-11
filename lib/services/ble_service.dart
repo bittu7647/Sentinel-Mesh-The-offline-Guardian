@@ -56,7 +56,7 @@ class BleService {
 
       _scanSubscription = FlutterBluePlus.scanResults.listen((results) {
         for (ScanResult r in results) {
-          if (r.device.platformName == 'Sentinel_ESP' || r.device.advName == 'Sentinel_ESP') {
+          if (r.device.platformName == 'Sentinel' || r.device.advName == 'Sentinel') {
             FlutterBluePlus.stopScan();
             _scanSubscription?.cancel();
             _connectToDevice(r.device, onSosTriggered, onStateChanged);

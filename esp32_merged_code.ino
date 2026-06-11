@@ -136,7 +136,7 @@ void setup() {
   digitalWrite(LED_RED, LOW);
 
   // ================= BLE INITIALIZATION =================
-  BLEDevice::init("Sentinel_ESP");
+  BLEDevice::init("Sentinel");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
   BLEService *pService = pServer->createService(SERVICE_UUID);

@@ -25,7 +25,7 @@
     <application
         android:label="sentinel_mesh"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/launcher_icon">
         
         <activity
             android:name=".MainActivity"
@@ -78,7 +78,7 @@
         <!-- Google Maps API Key -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="YOUR_ANDROID_MAPS_API_KEY"/>
+            android:value="${mapsApiKey}"/>
     </application>
 
     <queries>

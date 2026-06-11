@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_generative_ai/google_generative_ai.dart';
+import '../widgets/ai_floating_widget.dart';
+import '../theme/app_theme.dart';
 
 class SafetyChatbotScreen extends StatefulWidget {
   const SafetyChatbotScreen({super.key});
@@ -23,7 +25,14 @@ class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
   @override
   void initState() {
     super.initState();
+    AIFloatingWidget.isVisible.value = false;
     _initChatbot();
+  }
+
+  @override
+  void dispose() {
+    AIFloatingWidget.isVisible.value = true;
+    super.dispose();
   }
 
   void _initChatbot() {
@@ -101,16 +110,17 @@ class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppTheme.bg,
       appBar: AppBar(
-        title: const Text('Safety AI Assistant'),
-        backgroundColor: const Color(0xFF1D3557),
+        title: const Text('SAFETY AI ASSISTANT'),
+        leading: IconButton(icon: const Icon(Icons.arrow_back_ios_new_rounded, color: AppTheme.textMain, size: 20), onPressed: () => Navigator.pop(context)),
       ),
       body: Column(
         children: [
           Expanded(
             child: ListView.builder(
               controller: _scrollController,
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
               itemCount: _messages.length,
               itemBuilder: (context, index) {
                 final message = _messages[index];
@@ -120,8 +130,8 @@ class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
           ),
           if (_isLoading)
             const Padding(
-              padding: EdgeInsets.all(8.0),
-              child: CircularProgressIndicator(),
+              padding: EdgeInsets.all(12.0),
+              child: CircularProgressIndicator(color: AppTheme.accentCyan),
             ),
           _buildMessageInput(),
         ],
@@ -130,23 +140,26 @@ class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
   }
 
   Widget _buildMessageBubble(Message message) {
+    final isUser = message.isUser;
     return Align(
-      alignment: message.isUser ? Alignment.centerRight : Alignment.centerLeft,
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 8.0, horizontal: 8.0),
-        padding: const EdgeInsets.all(16.0),
+        margin: const EdgeInsets.only(bottom: 16),
+        padding: const EdgeInsets.all(16),
+        constraints: BoxConstraints(maxWidth: MediaQuery.of(context).size.width * 0.75),
         decoration: BoxDecoration(
-          color: message.isUser ? const Color(0xFF457B9D) : const Color(0xFF2A9D8F),
+          color: isUser ? AppTheme.surface : AppTheme.accentCyan.withValues(alpha: 0.1),
           borderRadius: BorderRadius.only(
-            topLeft: const Radius.circular(16),
-            topRight: const Radius.circular(16),
-            bottomLeft: message.isUser ? const Radius.circular(16) : const Radius.circular(0),
-            bottomRight: message.isUser ? const Radius.circular(0) : const Radius.circular(16),
+            topLeft: const Radius.circular(20),
+            topRight: const Radius.circular(20),
+            bottomLeft: isUser ? const Radius.circular(20) : Radius.zero,
+            bottomRight: isUser ? Radius.zero : const Radius.circular(20),
           ),
+          border: Border.all(color: isUser ? Colors.white.withValues(alpha: 0.05) : AppTheme.accentCyan.withValues(alpha: 0.2)),
         ),
         child: SelectableText(
           message.text,
-          style: const TextStyle(color: Colors.white, fontSize: 16),
+          style: TextStyle(color: isUser ? AppTheme.textMain : AppTheme.accentCyan, fontSize: 15, height: 1.4),
         ),
       ),
     );
@@ -154,33 +167,37 @@ class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
 
   Widget _buildMessageInput() {
     return Container(
-      padding: const EdgeInsets.all(8.0),
-      color: const Color(0xFF1D3557),
+      padding: EdgeInsets.fromLTRB(16, 12, 16, 12 + MediaQuery.of(context).padding.bottom),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: const BorderRadius.only(topLeft: Radius.circular(32), topRight: Radius.circular(32)),
+      ),
       child: Row(
         children: [
           Expanded(
             child: TextField(
               controller: _textController,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: AppTheme.textMain),
               decoration: InputDecoration(
                 hintText: 'Ask for safety advice...',
-                hintStyle: const TextStyle(color: Colors.white54),
+                hintStyle: const TextStyle(color: AppTheme.textDim),
                 filled: true,
-                fillColor: const Color(0xFF457B9D).withOpacity(0.5),
+                fillColor: AppTheme.bg.withValues(alpha: 0.5),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(24.0),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 10.0),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
               ),
               onSubmitted: (_) => _sendMessage(),
             ),
           ),
-          const SizedBox(width: 8),
+          const SizedBox(width: 12),
           CircleAvatar(
-            backgroundColor: const Color(0xFFE63946),
+            backgroundColor: AppTheme.accentCyan,
+            radius: 24,
             child: IconButton(
-              icon: const Icon(Icons.send, color: Colors.white),
+              icon: const Icon(Icons.send_rounded, color: AppTheme.bg, size: 20),
               onPressed: _sendMessage,
             ),
           ),

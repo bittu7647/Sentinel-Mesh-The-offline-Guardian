@@ -199,7 +199,7 @@ class _HomeScreenState extends State<HomeScreen> {
       onTap: onTap,
       child: GlassCard(
         padding: 16,
-        border: Border.all(color: color.withOpacity(0.3)),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
@@ -293,13 +293,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
           return GlassCard(
             padding: 16,
-            border: Border.all(color: isActive ? AppTheme.error : AppTheme.textSecondary.withOpacity(0.3)),
+            border: Border.all(color: isActive ? AppTheme.error : AppTheme.textSecondary.withValues(alpha: 0.3)),
             child: ListTile(
               contentPadding: EdgeInsets.zero,
               leading: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isActive ? AppTheme.error.withOpacity(0.2) : AppTheme.surface,
+                  color: isActive ? AppTheme.error.withValues(alpha: 0.2) : AppTheme.surface,
                   shape: BoxShape.circle,
                 ),
                 child: Icon(Icons.developer_board, color: isActive ? AppTheme.error : AppTheme.primary),

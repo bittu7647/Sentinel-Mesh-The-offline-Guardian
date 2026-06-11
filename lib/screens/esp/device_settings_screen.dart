@@ -81,9 +81,9 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
-                        color: AppTheme.success.withOpacity(0.2),
+                        color: AppTheme.success.withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(20),
-                        border: Border.all(color: AppTheme.success.withOpacity(0.5)),
+                        border: Border.all(color: AppTheme.success.withValues(alpha: 0.5)),
                       ),
                       child: const Text(
                         'LINKED TO ACCOUNT',
@@ -101,13 +101,13 @@ class _DeviceSettingsScreenState extends State<DeviceSettingsScreen> {
               const SizedBox(height: 16),
               GlassCard(
                 padding: 16,
-                border: Border.all(color: AppTheme.error.withOpacity(0.3)),
+                border: Border.all(color: AppTheme.error.withValues(alpha: 0.3)),
                 child: ListTile(
                   contentPadding: EdgeInsets.zero,
                   leading: Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppTheme.error.withOpacity(0.1),
+                      color: AppTheme.error.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: const Icon(Icons.delete_outline, color: AppTheme.error),
