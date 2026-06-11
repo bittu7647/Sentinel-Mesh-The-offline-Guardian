@@ -1,5 +1,6 @@
 name: sentinel_mesh
 description: Decentralized Safety Network
+version: 1.2.2+1
 publish_to: 'none'
 
 environment:
