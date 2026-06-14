@@ -34,3 +34,4 @@ Sentinel Mesh utilizes a highly redundant, multi-provider AI engine to analyze e
 - **MPU6500 (Accelerometer & Gyroscope)**: Used for the three-step intelligent fall detection (free fall, impact, immobility).
 - **NEO-6M GPS Module**: Provides accurate, real-time location data directly from satellites.
 - **LoRa Module**: Enables long-range emergency broadcasting without cellular networks or WiFi.
+- **SIM800L GSM Module**: Handles cellular connectivity to send emergency SMS alerts and transmit data over mobile networks, ensuring reliable communication anywhere there is cell service.
