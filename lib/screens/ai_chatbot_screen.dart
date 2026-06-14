@@ -11,8 +11,7 @@ class SafetyChatbotScreen extends StatefulWidget {
 }
 
 class _SafetyChatbotScreenState extends State<SafetyChatbotScreen> {
-  // TODO: Replace with read from remote config, env vars, or secure storage
-  static const String _apiKey = 'AIzaSyBa1j6cL3vgVoXzXzVfp3LpAA5KABeOypk';
+  static String get _apiKey => dotenv.env['GEMINI_API_KEY'] ?? 'YOUR_GEMINI_API_KEY';
 
   late final GenerativeModel _model;
   late final ChatSession _chat;

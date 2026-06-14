@@ -1,159 +1,36 @@
-# 🚨 Sentinel Mesh – Smart Women Safety System
+# 🚨 Sentinel Mesh – The Offline Guardian
 
-Sentinel Mesh is a **multi-layer IoT-based women safety system** designed to provide **real-time emergency detection, location tracking, and rapid alert transmission**.
+Sentinel Mesh is a multi-layer IoT and AI-powered safety network designed to provide real-time emergency detection, offline threat analysis, and rapid alert transmission. The system ensures that emergency alerts reach trusted contacts and nearby responders even when traditional networks fail.
 
-The system combines **hardware sensors, cloud infrastructure, LoRa communication, and a mobile application** to ensure that emergency alerts can reach **trusted contacts as well as nearby users**.
+## 🤖 Artificial Intelligence Engine
 
-It provides **multiple communication channels** so that emergency alerts can still be transmitted even if one network fails.
+Sentinel Mesh utilizes a highly redundant, multi-provider AI engine to analyze emergencies in real-time, even when specific cloud services are down.
 
----
+- **Groq (Llama 3.3 70B & Llama 3.1 8B)**: Provides blazing-fast text-based incident report generation and situational reasoning.
+- **Gemini (2.0 Flash & 1.5 Flash)**: Analyzes video and image evidence captured during an SOS to determine threat severity, weapon presence, and environment details.
+- **Multi-Tier Fallback System**: If video analysis fails or quotas are depleted, the system cascades automatically to lighter text models or offline hardcoded reports, ensuring an emergency report is always generated.
+- **YOLO Vision Threat Detection**: On-device machine learning for detecting weapons and anomalies directly from the live camera feed.
+- **Audio AI Service**: Analyzes ambient sounds (screams, sirens) to provide immediate context to the emergency.
+- **Route Anomaly Service**: AI-powered detection of sudden route deviations or unsafe detours during travel.
 
-# 📌 Project Overview
+## 🎯 Key Features
 
-Women often face safety risks when traveling alone or in unfamiliar areas. Sentinel Mesh addresses this problem by providing a **smart wearable safety device** capable of:
+- **Redundant SOS Trigger**: Activated via mobile app or hardware button.
+- **Intelligent Fall Detection**: Automatically triggers an SOS upon detecting free fall and impact.
+- **Live Location Tracking**: Broadcasts the victim's location in real-time to the cloud and nearby users.
+- **Community Responder Radar**: Alerts localized responders and provides a live radar/distance tracker to locate the victim.
+- **Automated Evidence Recording**: Captures and safely stores video/audio evidence when an SOS is triggered.
 
-- Detecting dangerous situations automatically
-- Sending emergency alerts with location
-- Broadcasting emergency signals through multiple networks
-- Alerting nearby users through a mobile app
-- Recording audio/video evidence during emergencies
+## 🛠 Software Technologies Used
 
-The system ensures **fast response and improved safety** through **redundant communication technologies**.
+- **Flutter & Dart**: Cross-platform mobile application development.
+- **Firebase**: Real-time database for syncing SOS alerts and cloud storage for uploading evidence.
+- **Google Maps SDK**: Live tracking and routing to the victim.
+- **WebSockets / Bluetooth Low Energy (BLE)**: Hardware-to-mobile communication.
 
----
+## ⚙ Hardware Components
 
-# 🎯 Key Features
-
-## 🚨 SOS Emergency Trigger
-
-- Activated by pressing the **SOS button three times**
-- Sends alerts to predefined contacts
-- Starts **live location tracking**
-- Notifies nearby users through the mobile application
-
----
-
-## 🧍‍♀️ Intelligent Fall Detection
-
-The system uses an **MPU6500 accelerometer and gyroscope** to detect falls.
-
-### Three-step detection process:
-
-1. Free fall detection
-2. Impact detection
-3. Immobility confirmation
-
-If all conditions are met, the system **automatically triggers an emergency alert**.
-
----
-
-## � GPS Location Tracking
-
-A **NEO-6M GPS module** provides real-time location tracking.
-
----
-
-## 💡 LED Status Indicators
-
-| LED State | Meaning |
-| :--- | :--- |
-| OFF | Device starting |
-| ON | System ready |
-| Blinking | Emergency triggered |
-
----
-
-## 🤖 AI Safety Chatbot
-
-The integrated mobile app features a dedicated **AI Safety Assistant** that provides real-time guidance, safety tips, and situational advice when users feel insecure but are not yet in an active emergency.
-
----
-
-## 📡 Community Responder Radar
-
-A dedicated **Responder Mode** in the app allows nearby community members to act as guardians. When an SOS is triggered, the app alerts all localized responders with a high-priority notification and displays a **live radar distance tracker** to quickly locate the victim.
-
----
-
-## 📸 Automated Evidence Recording
-
-When an SOS or a heavy impact is confirmed, the mobile app automatically activates the camera and **records video/audio evidence** to the local device storage to capture critical information of the incident.
-
----
-
-## 🖥 Software Requirements
-
-**Development Environment:**
-- Arduino IDE
-
-**Required Libraries:**
-*(Install from Arduino Library Manager)*
-- WiFi.h
-- HTTPClient.h
-- TinyGPS++
-- Wire.h
-- SPI.h
-- LoRa.h
-
----
-
-## 🚀 System Workflow
-
-**Device Startup:**
-Power ON ➔ Initialize sensors ➔ Connect to WiFi ➔ Start LoRa module ➔ System Ready
-
-**Fall Detection Workflow:**
-Free Fall Detected ➔ Impact Detected ➔ Immobility Confirmed ➔ Emergency Alert Triggered
-
-**SOS Button Workflow:**
-User presses SOS (3 clicks) ➔ Telegram alert sent ➔ Firebase updated ➔ Nearby users notified ➔ LoRa emergency broadcast
-
-**Stop Tracking:**
-Holding the SOS button for 5 seconds stops tracking.
-
----
-
-## 🔐 Reliability & Safety
-
-The system uses multiple communication channels to ensure alerts are transmitted even if one network fails.
-
-**Communication layers:**
-1. WiFi → Cloud alerts
-2. LoRa → Long-range emergency broadcast
-3. Mobile App → Nearby community alert
-
----
-
-## 🛠 Future Improvements
-
-Possible future upgrades:
-- 📱 Dedicated mobile app UI
-- 🎥 Live video streaming
-- 🔊 Emergency buzzer alarm
-- 🛰 GSM module for independent internet connectivity
-- 📡 LoRa mesh network
-- 🔋 Battery level monitoring
-- ☁ Cloud analytics dashboard
-
----
-
-## 👩‍💻 Contributors
-
-This project was developed by:
-- **Bipladip Saha** – Hardware Integration & ESP32 Programming
-- **Anisha Majumdar** – Sensor Integration & Fall Detection System
-- **Anwesha Das** – Cloud Integration & Firebase Alert System
-- **Bittu Sharma** – Mobile Application Development & Nearby SOS Alert System
-
----
-
-## 📜 License
-
-This project is developed for academic and research purposes.
-
-
-## 🎥 Project Demo Video
-
-Watch the working demonstration of the Sentinel Mesh safety system:
-
-🔗 https://drive.google.com/file/d/16RE3Yvbk_A_8LJmS1GmmqQPxhe8BqOlp/view?usp=drivesdk
+- **ESP32 Microcontroller**: The core processor handling sensor data and communication.
+- **MPU6500 (Accelerometer & Gyroscope)**: Used for the three-step intelligent fall detection (free fall, impact, immobility).
+- **NEO-6M GPS Module**: Provides accurate, real-time location data directly from satellites.
+- **LoRa Module**: Enables long-range emergency broadcasting without cellular networks or WiFi.
