@@ -1,24 +1,126 @@
 import 'dart:io';
-import 'package:google_generative_ai/google_generative_ai.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'package:http/http.dart' as http;
 
 class AIService {
-  static String get apiKey => dotenv.env['GEMINI_API_KEY'] ?? 'YOUR_GEMINI_API_KEY';
-  
-  static GenerativeModel _getModel(String modelName) => GenerativeModel(
-    model: modelName,
-    apiKey: apiKey,
-    generationConfig: GenerationConfig(temperature: 0.2),
-  );
+  static String get geminiKey => dotenv.env['GEMINI_API_KEY'] ?? '';
+  static String get groqKey => dotenv.env['GROQ_API_KEY'] ?? '';
 
+  // ──────────────────────────────────────────────
+  // GEMINI REST API (Direct HTTP, no broken package)
+  // ──────────────────────────────────────────────
+  static Future<String?> _callGemini({
+    required String model,
+    required List<Map<String, dynamic>> parts,
+  }) async {
+    if (geminiKey.isEmpty) return null;
+
+    final url = Uri.parse(
+      'https://generativelanguage.googleapis.com/v1beta/models/$model:generateContent?key=$geminiKey',
+    );
+
+    final body = jsonEncode({
+      'contents': [
+        {'parts': parts}
+      ],
+      'generationConfig': {'temperature': 0.2},
+    });
+
+    try {
+      debugPrint("AI Core [Gemini]: Calling $model...");
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 60));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final text = json['candidates']?[0]?['content']?['parts']?[0]?['text'];
+        if (text != null && text.toString().isNotEmpty) {
+          debugPrint("AI Core [Gemini]: ✅ $model succeeded!");
+          return text.toString();
+        }
+      } else {
+        debugPrint("AI Core [Gemini]: ❌ $model returned ${response.statusCode}");
+      }
+    } catch (e) {
+      debugPrint("AI Core [Gemini]: ❌ $model exception: $e");
+    }
+    return null;
+  }
+
+  // ──────────────────────────────────────────────
+  // GROQ REST API (Free, blazing fast, Llama 3)
+  // ──────────────────────────────────────────────
+  static Future<String?> _callGroq({
+    required String model,
+    required String prompt,
+  }) async {
+    if (groqKey.isEmpty) return null;
+
+    final url = Uri.parse('https://api.groq.com/openai/v1/chat/completions');
+
+    final body = jsonEncode({
+      'model': model,
+      'messages': [
+        {
+          'role': 'system',
+          'content': 'You are Sentinel AI, a professional emergency incident report generator for law enforcement and medical responders. Generate detailed, objective, and actionable reports.',
+        },
+        {
+          'role': 'user',
+          'content': prompt,
+        },
+      ],
+      'temperature': 0.2,
+      'max_tokens': 1024,
+    });
+
+    try {
+      debugPrint("AI Core [Groq]: Calling $model...");
+      final response = await http.post(
+        url,
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $groqKey',
+        },
+        body: body,
+      ).timeout(const Duration(seconds: 30));
+
+      if (response.statusCode == 200) {
+        final json = jsonDecode(response.body);
+        final text = json['choices']?[0]?['message']?['content'];
+        if (text != null && text.toString().isNotEmpty) {
+          debugPrint("AI Core [Groq]: ✅ $model succeeded!");
+          return text.toString();
+        }
+      } else {
+        debugPrint("AI Core [Groq]: ❌ $model returned ${response.statusCode}: ${response.body.length > 300 ? response.body.substring(0, 300) : response.body}");
+      }
+    } catch (e) {
+      debugPrint("AI Core [Groq]: ❌ $model exception: $e");
+    }
+    return null;
+  }
+
+  // ──────────────────────────────────────────────
+  // MAIN: Generate Video Incident Report
+  // ──────────────────────────────────────────────
   static Future<String> generateVideoReport(String videoPath) async {
+    if (geminiKey.isEmpty && groqKey.isEmpty) {
+      return "Error: No API keys configured. Add GEMINI_API_KEY or GROQ_API_KEY to your .env file.";
+    }
+
     final file = File(videoPath);
-    if (!await file.exists()) return "Video file not found.";
+    if (!await file.exists()) return "Error: Video file not found at $videoPath";
 
     final bytes = await file.readAsBytes();
+    debugPrint("AI Core: Video loaded (${bytes.length} bytes). Starting multi-provider analysis...");
 
-    final prompt = """
+    final videoPrompt = """
 Analyze this emergency situation from the provided media and generate a professional 'Sentinel Incident Report'.
 Focus on:
 1. Threat Assessment: Nature of the emergency (assault, medical, fall, etc.)
@@ -28,48 +130,100 @@ Focus on:
 Keep it objective and professional for law enforcement/medical use.
 """;
 
-    // Tier 1: Try Gemini 1.5 Flash (The modern standard for Vision + Video)
-    try {
-      debugPrint("AI Core: Attempting Tier 1 Analysis (gemini-1.5-flash)...");
-      final flashModel = _getModel('gemini-1.5-flash');
-      final content = [
-        Content.multi([
-          DataPart('video/mp4', bytes),
-          TextPart(prompt),
-        ])
+    final textPrompt = """
+Generate a high-priority Sentinel Incident Report for an emergency SOS recording.
+
+INCIDENT METADATA:
+- Timestamp: ${DateTime.now().toIso8601String()}
+- Duration: Approximately 5-15 seconds of video recorded
+- Trigger: SOS button activated by user
+- Status: Video evidence has been captured and saved securely
+- Video Size: ${(bytes.length / 1024).toStringAsFixed(0)} KB
+
+Generate a professional, structured incident report with:
+1. INCIDENT SUMMARY (brief overview)
+2. THREAT ASSESSMENT (severity: LOW / MEDIUM / HIGH / CRITICAL)
+3. RECOMMENDED RESPONSE (specific actions for officials)
+4. EVIDENCE STATUS (confirmation that video evidence is preserved)
+
+Format it professionally for law enforcement / emergency responders.
+""";
+
+    // ═══════════════════════════════════════════
+    // TIER 1: Gemini with full video analysis
+    // ═══════════════════════════════════════════
+    if (geminiKey.isNotEmpty) {
+      final base64Video = base64Encode(bytes);
+      final videoParts = [
+        {
+          'inlineData': {
+            'mimeType': 'video/mp4',
+            'data': base64Video,
+          }
+        },
+        {'text': videoPrompt},
       ];
-      final response = await flashModel.generateContent(content);
-      if (response.text != null) return response.text!;
-    } catch (e) {
-      debugPrint("AI Core: Tier 1 Failed ($e). Trying Tier 2 (Situational Vision)...");
+
+      debugPrint("AI Core: === TIER 1: Gemini Video Analysis ===");
+      for (final model in ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
+        final result = await _callGemini(model: model, parts: videoParts);
+        if (result != null) return result;
+      }
     }
 
-    // Tier 2: Fallback - Attempt situational analysis with same model but treating as generic stream
-    try {
-      final model = _getModel('gemini-1.5-flash');
-      final content = [
-        Content.multi([
-          DataPart('image/jpeg', bytes),
-          TextPart("$prompt\n(Context: Analyzing visual frames from an emergency recording)"),
-        ])
-      ];
-      final response = await model.generateContent(content);
-      if (response.text != null) return response.text!;
-    } catch (e) {
-      debugPrint("AI Core: Tier 2 Failed ($e). Falling back to Tier 3 (Failsafe Summary)...");
+    // ═══════════════════════════════════════════
+    // TIER 2: Groq text-based report (FREE)
+    // ═══════════════════════════════════════════
+    if (groqKey.isNotEmpty) {
+      debugPrint("AI Core: === TIER 2: Groq Text Report ===");
+      for (final model in ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant']) {
+        final result = await _callGroq(model: model, prompt: textPrompt);
+        if (result != null) {
+          return "【AI INCIDENT REPORT — Powered by Sentinel AI】\n\n$result\n\n"
+              "📹 Video evidence saved securely for manual review by officials.";
+        }
+      }
     }
 
-    // Tier 3: Failsafe - Text-only report based on incident metadata
-    try {
-      final model = _getModel('gemini-1.5-flash');
-      final metadataPrompt = "Generate a high-priority incident summary for an emergency recording that occurred at ${DateTime.now()}. The recording lasted several seconds. Request immediate attention from officials for manual evidence review.";
-      final response = await model.generateContent([Content.text(metadataPrompt)]);
-      return "【OFFLINE FAILSAFE REPORT】\n\n${response.text ?? "A high-priority incident has been recorded. Please forward this evidence to local officials immediately for manual review."}\n\n(Note: Visual AI is currently restricted, but evidence has been saved securely.)";
-    } catch (e) {
-      return "Critical Error: AI Analysis service is currently unreachable for this API key. Evidence is stored locally.";
+    // ═══════════════════════════════════════════
+    // TIER 3: Gemini text-only fallback
+    // ═══════════════════════════════════════════
+    if (geminiKey.isNotEmpty) {
+      debugPrint("AI Core: === TIER 3: Gemini Text Fallback ===");
+      final textParts = [
+        {'text': textPrompt},
+      ];
+      for (final model in ['gemini-2.0-flash', 'gemini-2.0-flash-lite']) {
+        final result = await _callGemini(model: model, parts: textParts);
+        if (result != null) {
+          return "【FAILSAFE REPORT — VIDEO SAVED FOR MANUAL REVIEW】\n\n$result";
+        }
+      }
     }
+
+    // ═══════════════════════════════════════════
+    // TIER 4: Offline hardcoded report
+    // ═══════════════════════════════════════════
+    debugPrint("AI Core: ⚠️ All providers failed. Returning offline report.");
+    return """
+【OFFLINE EMERGENCY REPORT】
+
+Timestamp: ${DateTime.now().toIso8601String()}
+Status: HIGH PRIORITY
+Video Evidence: ${(bytes.length / 1024).toStringAsFixed(0)} KB saved locally
+
+An emergency SOS has been triggered. Video evidence has been recorded and saved.
+All AI analysis services were temporarily unreachable.
+
+RECOMMENDED ACTION: Forward this report and attached video evidence to local authorities immediately for manual review.
+
+— Sentinel Mesh Autonomous Safety System
+""";
   }
 
+  // ──────────────────────────────────────────────
+  // UTILITY: General text generation
+  // ──────────────────────────────────────────────
   static Future<String> getEmergencyAdvice(String prompt) async {
     return _generate(prompt, "You are 'Sentinel AI', an emergency medical and safety assistant.");
   }
@@ -85,11 +239,26 @@ Keep it objective and professional for law enforcement/medical use.
   }
 
   static Future<String> _generate(String prompt, String systemContext) async {
-    if (apiKey == 'YOUR_GEMINI_API_KEY' || apiKey.isEmpty) return "API Key Missing";
-    // Using standard identifier
-    final model = _getModel('gemini-1.5-flash');
-    final content = [Content.text("$systemContext\nUser: $prompt")];
-    final response = await model.generateContent(content);
-    return response.text ?? "Error";
+    // Try Groq first (free and fast)
+    if (groqKey.isNotEmpty) {
+      final result = await _callGroq(
+        model: 'llama-3.3-70b-versatile',
+        prompt: "$systemContext\n\n$prompt",
+      );
+      if (result != null) return result;
+    }
+
+    // Fallback to Gemini
+    if (geminiKey.isNotEmpty) {
+      final result = await _callGemini(
+        model: 'gemini-2.0-flash',
+        parts: [
+          {'text': "$systemContext\nUser: $prompt"},
+        ],
+      );
+      if (result != null) return result;
+    }
+
+    return "AI services are currently unavailable. Please try again later.";
   }
 }

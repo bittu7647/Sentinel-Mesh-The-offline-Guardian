@@ -1,7 +1,10 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../../core/animations/staggered_list_animation.dart';
@@ -28,7 +31,47 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _requestPermissions();
     _initListeners();
+  }
+
+  Future<void> _requestPermissions() async {
+    try {
+      // Bluetooth permissions for Android 12+
+      await [
+        Permission.bluetoothScan,
+        Permission.bluetoothConnect,
+        Permission.bluetoothAdvertise,
+      ].request();
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.whileInUse) {
+        // Request background location for continuous tracking
+        await Permission.locationAlways.request();
+      }
+    } catch (e) {
+      debugPrint("Permission Error: $e");
+    }
+  }
+
+  bool _isNavigating = false;
+
+  void _navigateToSenderIfNotThere() {
+    if (!mounted || _isNavigating) return;
+    
+    // Check current route to prevent duplicate pushes
+    final router = GoRouter.of(context);
+    final currentPath = router.routerDelegate.currentConfiguration.uri.toString();
+    
+    if (!currentPath.startsWith('/sender')) {
+      _isNavigating = true;
+      context.push('/sender?auto_start=true').then((_) {
+         if (mounted) _isNavigating = false;
+      });
+    }
   }
 
   void _initListeners() {
@@ -57,8 +100,27 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     _sosSub = FlutterBackgroundService().on('sos_triggered').listen((_) {
-      if (mounted) {
-        context.push('/sender');
+      _navigateToSenderIfNotThere();
+    });
+
+    _initNativeIntentListener();
+  }
+
+  static const MethodChannel _channel = MethodChannel('sentinel_mesh/esp_watcher');
+
+  Future<void> _initNativeIntentListener() async {
+    // 1. Check if the app was just opened via an emergency intent
+    try {
+      final bool isAutoRecord = await _channel.invokeMethod('isAutoRecord') ?? false;
+      if (isAutoRecord) {
+        _navigateToSenderIfNotThere();
+      }
+    } catch (_) {}
+
+    // 2. Listen for emergency intents while the app is already open
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'autoRecord') {
+        _navigateToSenderIfNotThere();
       }
     });
   }

@@ -1331,7 +1331,7 @@
             document.getElementById('incidentCount').innerText = list.children.length + ' events';
         }
 
-        // ══════════════════════════ PROCESS UPDATE ══════════════════════════
+        /* ══════════════════════════ PROCESS UPDATE ══════════════════════════ */
         function processUpdate(data) {
             const status = data.status || 'IDLE';
             const gpsField = data.gps;
@@ -1348,7 +1348,7 @@
             lastKnownStatus = status;
             updateCounter++;
 
-            // ─── DASHBOARD VIEW ───
+            /* ─── DASHBOARD VIEW ─── */
             document.getElementById('dashLastUpdate').innerText = now;
             const chip = document.getElementById('dashStatusChip');
             const chipText = document.getElementById('dashStatusText');
@@ -1392,45 +1392,44 @@
             }
             document.getElementById('mapCoords').innerText = hasCoords ? 'Lat: ' + lat.toFixed(6) + '  |  Lng: ' + lng.toFixed(6) : 'GPS — NO SIGNAL';
 
-            // ─── TRACKING VIEW ───
-            if (currentView === 'tracking' || trackMapInit) {
-                document.getElementById('trackLat').innerText = hasCoords ? lat.toFixed(6) : '—';
-                document.getElementById('trackLng').innerText = hasCoords ? lng.toFixed(6) : '—';
-                document.getElementById('trackLastUpdate').innerText = now;
-                updateGpsTag('trackGpsTag', gpsLive, hasCoords);
-                if (wifi !== undefined) { updateWifiBars('trackWifiBars', wifi); document.getElementById('trackWifiVal').innerText = wifi + ' dBm'; }
-                if (battery !== undefined) updateBattery('trackBatFill', 'trackBatPct', battery);
+            /* ─── TRACKING VIEW ─── */
+            /* ─── TRACKING VIEW ─── */
+            document.getElementById('trackLat').innerText = hasCoords ? lat.toFixed(6) : '—';
+            document.getElementById('trackLng').innerText = hasCoords ? lng.toFixed(6) : '—';
+            document.getElementById('trackLastUpdate').innerText = now;
+            updateGpsTag('trackGpsTag', gpsLive, hasCoords);
+            if (wifi !== undefined) { updateWifiBars('trackWifiBars', wifi); document.getElementById('trackWifiVal').innerText = wifi + ' dBm'; }
+            if (battery !== undefined) updateBattery('trackBatFill', 'trackBatPct', battery);
 
-                const tChip = document.getElementById('trackStatusChip');
-                const tText = document.getElementById('trackStatusText');
-                const tBanner = document.getElementById('trackBanner');
-                if (status === 'ACTIVE') {
-                    tChip.className = 'status-chip active'; tText.innerText = 'ACTIVE';
-                    tBanner.className = 'tracking-banner banner-active';
-                    tBanner.innerText = isNoSignal ? '🚨 EMERGENCY ACTIVE — GPS NO SIGNAL' : '🚨 EMERGENCY ACTIVE — TRACKING DEVICE 001';
-                } else {
-                    tChip.className = 'status-chip idle'; tText.innerText = 'IDLE';
-                    tBanner.className = 'tracking-banner banner-normal';
-                    tBanner.innerText = '🟢 SYSTEM NORMAL — ALL CLEAR';
-                }
-                document.getElementById('trackHud').innerText = (hasCoords ? 'Lat: ' + lat.toFixed(6) + ' | Lng: ' + lng.toFixed(6) : 'GPS — NO SIGNAL') + ' | Updates: ' + updateCounter;
+            const tChip = document.getElementById('trackStatusChip');
+            const tText = document.getElementById('trackStatusText');
+            const tBanner = document.getElementById('trackBanner');
+            if (status === 'ACTIVE') {
+                tChip.className = 'status-chip active'; tText.innerText = 'ACTIVE';
+                tBanner.className = 'tracking-banner banner-active';
+                tBanner.innerText = isNoSignal ? '🚨 EMERGENCY ACTIVE — GPS NO SIGNAL' : '🚨 EMERGENCY ACTIVE — TRACKING DEVICE 001';
+            } else {
+                tChip.className = 'status-chip idle'; tText.innerText = 'IDLE';
+                tBanner.className = 'tracking-banner banner-normal';
+                tBanner.innerText = '🟢 SYSTEM NORMAL — ALL CLEAR';
+            }
+            document.getElementById('trackHud').innerText = (hasCoords ? 'Lat: ' + lat.toFixed(6) + ' | Lng: ' + lng.toFixed(6) : 'GPS — NO SIGNAL') + ' | Updates: ' + updateCounter;
 
-                if (trackMapObj && trackMarker && hasCoords) {
-                    trackMarker.setLatLng([lat, lng]);
-                    trackMapObj.setView([lat, lng]);
-                    const el = trackMarker.getElement();
-                    if (el) { const c = el.querySelector('.pulse-marker') || el; status === 'ACTIVE' ? c.classList.remove('idle') : c.classList.add('idle'); }
-                    trailCoords.push([lat, lng]);
-                    trailLine.setLatLngs(trailCoords);
-                    trailLine.setStyle({ color: status === 'ACTIVE' ? '#DC2626' : '#3B82F6', opacity: status === 'ACTIVE' ? 0.7 : 0.5 });
-                }
+            if (trackMapObj && trackMarker && hasCoords) {
+                trackMarker.setLatLng([lat, lng]);
+                trackMapObj.setView([lat, lng]);
+                const el = trackMarker.getElement();
+                if (el) { const c = el.querySelector('.pulse-marker') || el; status === 'ACTIVE' ? c.classList.remove('idle') : c.classList.add('idle'); }
+                trailCoords.push([lat, lng]);
+                trailLine.setLatLngs(trailCoords);
+                trailLine.setStyle({ color: status === 'ACTIVE' ? '#DC2626' : '#3B82F6', opacity: status === 'ACTIVE' ? 0.7 : 0.5 });
             }
 
             // Incident log
             if (!initialLoad) addIncident(status, lat, lng, isNoSignal, now);
         }
 
-        // ══════════════════════════ VIEW TRANSITIONS ══════════════════════════
+        /* ══════════════════════════ VIEW TRANSITIONS ══════════════════════════ */
         function enterTracking() {
             document.getElementById('dashboardView').style.display = 'none';
             document.getElementById('alertBanner').classList.remove('visible');
@@ -1459,17 +1458,17 @@
         }
         function printReport() {
             const w = window.open('', '', 'width=800,height=600');
-            w.document.write('<html><head><title>Emergency Report</title><style>body{font-family:Inter,sans-serif;padding:40px;color:#1E293B;}h1{font-size:20px;margin-bottom:8px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{padding:8px 12px;border:1px solid #E2E5ED;text-align:left;font-size:13px;}th{background:#F5F6FA;font-weight:600;}</style></head><body>');
+            w.document.write('<ht' + 'ml><head><title>Emergency Report</title><style>body{font-family:Inter,sans-serif;padding:40px;color:#1E293B;}h1{font-size:20px;margin-bottom:8px;}table{width:100%;border-collapse:collapse;margin-top:20px;}th,td{padding:8px 12px;border:1px solid #E2E5ED;text-align:left;font-size:13px;}th{background:#F5F6FA;font-weight:600;}</st' + 'yle></head><bo' + 'dy>');
             w.document.write('<h1>🛡 Sentinel-Mesh — Emergency Report</h1><p>Generated: ' + new Date().toLocaleString() + '</p><p>Device: DEV-001 | Status: ' + lastKnownStatus + '</p><p>Last Known: ' + lastKnownLat.toFixed(6) + ', ' + lastKnownLng.toFixed(6) + '</p>');
             w.document.write('<table><tr><th>Time</th><th>Status</th><th>Location</th></tr>');
             incidents.forEach(i => { w.document.write('<tr><td>' + i.time + '</td><td>' + i.status + '</td><td>' + i.loc + '</td></tr>'); });
-            w.document.write('</table></body></html>');
+            w.document.write('</table></bo' + 'dy></ht' + 'ml>');
             w.document.close();
             w.focus();
             w.print();
         }
 
-        // ══════════════════════════ EMERGENCY POPUP ══════════════════════════
+        /* ══════════════════════════ EMERGENCY POPUP ══════════════════════════ */
         function showEmergencyPopup(lat, lng, hasCoords, isNoSignal, gpsLive) {
             modalShown = true;
             const now = new Date().toLocaleTimeString('en-US', { hour12: true });
@@ -1521,7 +1520,7 @@
             enterTracking();
         }
 
-        // ══════════════════════════ FIREBASE ══════════════════════════
+        /* ══════════════════════════ FIREBASE ══════════════════════════ */
         const firebaseConfig = config.firebase;
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
@@ -1529,17 +1528,25 @@
             const allDevices = snapshot.val();
             if (!allDevices) return;
 
-            // Get the first device from the devices folder
             const deviceIds = Object.keys(allDevices);
             if (deviceIds.length === 0) return;
 
-            const data = allDevices[deviceIds[0]];
+            // Find the first ACTIVE device, or fallback to the first device in the list
+            const activeDeviceId = deviceIds.find(id => allDevices[id].status === 'ACTIVE');
+            const data = allDevices[activeDeviceId || deviceIds[0]];
+            
+            // Prevent sticky active state from previous sessions when ESP/App is off
+            if (initialLoad && data.status === 'ACTIVE') {
+                data.status = 'IDLE';
+                // Automatically write back to Firebase to sync other viewers
+                database.ref("devices/" + (activeDeviceId || deviceIds[0])).update({ status: 'IDLE' });
+            }
 
             processUpdate(data);
             if (initialLoad) initialLoad = false;
         });
 
-        // ══════════════════════════ INIT MAP ON LOAD ══════════════════════════
+        /* ══════════════════════════ INIT MAP ON LOAD ══════════════════════════ */
         window.addEventListener('load', function () { initMainMap(); });
 
     </script>

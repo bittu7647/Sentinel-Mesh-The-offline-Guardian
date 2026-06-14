@@ -12,10 +12,11 @@ import 'package:android_intent_plus/android_intent.dart';
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'services/ai_orchestrator_service.dart';
 
-// Globals
-List<CameraDescription> _cameras = [];
 final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
 
 void main() async {
@@ -57,6 +58,9 @@ void main() async {
   } catch (e) {
     debugPrint("Background Service Init Error: $e");
   }
+
+  // 5. Request Location and Bluetooth Permissions
+  // (Moved to HomeScreen.dart so it runs inside a valid UI context)
   
   runApp(const SentinelSafeApp());
 }
@@ -96,7 +100,7 @@ Future<void> initializeService() async {
       isForegroundMode: true,
       notificationChannelId: 'sentinelsafe_bg',
       initialNotificationTitle: 'SentinelSafe Active',
-      initialNotificationContent: 'Monitoring environment for threats...',
+      initialNotificationContent: 'Monitoring for Sentinel hardware...',
       foregroundServiceNotificationId: 889,
     ),
     iosConfiguration: IosConfiguration(
@@ -147,15 +151,32 @@ void onStart(ServiceInstance service) async {
   FlutterBluePlus.scanResults.listen((results) async {
     if (isConnecting || connectedDevice != null) return;
     for (ScanResult r in results) {
-      if (r.device.platformName == 'Sentinel' || r.device.advName == 'Sentinel') {
+      final String name = r.device.platformName.isNotEmpty ? r.device.platformName : r.advertisementData.localName;
+      if (name == 'Sentinel') {
         isConnecting = true;
         try { await FlutterBluePlus.stopScan(); } catch (_) {}
         service.invoke('ble_state', {'state': 'connecting'});
+
         try {
-           await r.device.connect(autoConnect: false, timeout: const Duration(seconds: 10));
+           // Clear any stale GATT connections from previous app crashes
+           try { await r.device.disconnect(); } catch (_) {}
+           await Future.delayed(const Duration(milliseconds: 500));
+
+           await r.device.connect(autoConnect: false, timeout: const Duration(seconds: 15));
            connectedDevice = r.device;
            await _setupBleListeners(connectedDevice!, service);
            service.invoke('ble_state', {'state': 'connected'});
+
+           // Connection Success Notification
+           flutterLocalNotificationsPlugin.show(
+              88,
+              'Sentinel Hardware Connected',
+              'The app is now synced with your physical SOS button.',
+              const NotificationDetails(
+                android: AndroidNotificationDetails('sentinelsafe_bg', 'Safety Status', importance: Importance.low),
+              ),
+           );
+
            r.device.connectionState.listen((state) {
              if (state == BluetoothConnectionState.disconnected) {
                connectedDevice = null;
@@ -164,6 +185,7 @@ void onStart(ServiceInstance service) async {
              }
            });
         } catch (e) {
+          debugPrint("BLE CONNECT ERROR: $e");
           isConnecting = false;
           connectedDevice = null;
           service.invoke('ble_state', {'state': 'disconnected'});
@@ -178,7 +200,9 @@ void onStart(ServiceInstance service) async {
       try {
         service.invoke('ble_state', {'state': 'scanning'});
         await FlutterBluePlus.startScan(timeout: const Duration(seconds: 8));
-      } catch (_) {}
+      } catch (e) {
+        debugPrint("BLE SCAN ERROR: $e");
+      }
     }
   });
 }
@@ -189,7 +213,58 @@ Future<void> _triggerScan(ServiceInstance service, BluetoothDevice? connectedDev
     service.invoke('ble_state', {'state': 'scanning'});
     await FlutterBluePlus.startScan(timeout: const Duration(seconds: 8));
   } catch (e) {
+    debugPrint("MANUAL BLE SCAN ERROR: $e");
     service.invoke('ble_state', {'state': 'disconnected'});
+  }
+}
+
+Future<void> _updateFirebaseActive() async {
+  String firebaseURL = "https://esp32iotproject-e9fe1-default-rtdb.asia-southeast1.firebasedatabase.app";
+  
+  String lat = "0.000000";
+  String lng = "0.000000";
+  String gpsStatus = "NO_SIGNAL";
+
+  try {
+    Position position = await Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+      timeLimit: const Duration(seconds: 5),
+    );
+    lat = position.latitude.toStringAsFixed(6);
+    lng = position.longitude.toStringAsFixed(6);
+    gpsStatus = "OK";
+    debugPrint("📱 Phone GPS Acquired: $lat, $lng");
+  } catch (e) {
+    debugPrint("⚠️ Failed to get Phone GPS: $e");
+  }
+
+  try {
+    final fbUrl = Uri.parse("$firebaseURL/devices/device001.json");
+    await http.put(fbUrl, 
+      headers: {"Content-Type": "application/json"},
+      body: jsonEncode({
+        "status": "ACTIVE",
+        "deviceID": 1,
+        "lat": double.tryParse(lat) ?? 0.0,
+        "lng": double.tryParse(lng) ?? 0.0,
+        "gps": gpsStatus,
+        "gps_live": gpsStatus == "OK"
+      })
+    );
+    debugPrint("Firebase updated successfully via Flutter");
+  } catch (e) {
+    debugPrint("Failed to update Firebase: $e");
+  }
+}
+
+Future<void> _sendIdleStatus() async {
+  String firebaseURL = "https://esp32iotproject-e9fe1-default-rtdb.asia-southeast1.firebasedatabase.app";
+  try {
+    final fbUrl = Uri.parse("$firebaseURL/devices/device001.json");
+    await http.put(fbUrl, headers: {"Content-Type": "application/json"}, body: jsonEncode({"status": "IDLE", "deviceID": 1}));
+    debugPrint("Firebase set to IDLE via Flutter");
+  } catch (e) {
+    debugPrint("Failed to set IDLE: $e");
   }
 }
 
@@ -197,15 +272,42 @@ Future<void> _setupBleListeners(BluetoothDevice device, ServiceInstance service)
   try {
     List<BluetoothService> services = await device.discoverServices();
     for (var svc in services) {
-      if (svc.uuid.toString() == "0000ffe0-0000-1000-8000-00805f9b34fb") {
+      final svcUuid = svc.uuid.toString().toLowerCase();
+      if (svcUuid.contains("ffe0")) {
         for (var charc in svc.characteristics) {
-          if (charc.uuid.toString() == "0000ffe1-0000-1000-8000-00805f9b34fb") {
-            await charc.setNotifyValue(true);
-            charc.onValueReceived.listen((value) async {
+          final charUuid = charc.uuid.toString().toLowerCase();
+          if (charUuid.contains("ffe1")) {
+            debugPrint("✅ Found SOS Characteristic! Subscribing to notifications...");
+            try {
+              await charc.setNotifyValue(true);
+              // Use onValueReceived for real-time notifications
+              charc.onValueReceived.listen((value) async {
               if (value.isNotEmpty) {
                 String msg = utf8.decode(value);
+                debugPrint("BLE RECEIVE: $msg");
                 if (msg.trim() == '1' || msg.trim() == '2') {
+                  // UPDATE FIREBASE VIA PHONE INTERNET
+                  _updateFirebaseActive();
+
+                  // BROADCAST TO SERVICE CHANNEL
                   service.invoke('sos_triggered');
+
+                  // High-priority Alert Notification
+                  flutterLocalNotificationsPlugin.show(
+                    99,
+                    '🚨 HARDWARE SOS TRIGGERED',
+                    'Sentinel hardware button pressed. Activating recording.',
+                    const NotificationDetails(
+                      android: AndroidNotificationDetails(
+                        'sentinelsafe_bg',
+                        'Emergency Alerts',
+                        importance: Importance.max,
+                        priority: Priority.high,
+                        fullScreenIntent: true,
+                      ),
+                    ),
+                  );
+
                   if (Platform.isAndroid) {
                     const intent = AndroidIntent(
                       action: 'android.intent.action.MAIN',
@@ -216,9 +318,16 @@ Future<void> _setupBleListeners(BluetoothDevice device, ServiceInstance service)
                     );
                     await intent.launch();
                   }
+                } else if (msg.trim() == '3') {
+                  // STOP RECORDING COMMAND & FIREBASE IDLE
+                  _sendIdleStatus();
+                  service.invoke('sos_stopped');
                 }
               }
             });
+            } catch (e) {
+              debugPrint("❌ Failed to subscribe to BLE notifications: $e");
+            }
           }
         }
       }

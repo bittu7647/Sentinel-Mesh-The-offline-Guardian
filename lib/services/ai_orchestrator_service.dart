@@ -5,6 +5,9 @@ import 'threat_evaluator.dart';
 import '../models/threat_level.dart';
 import 'ai_service.dart';
 import 'places_service.dart';
+import 'audio_ai_service.dart';
+import 'route_anomaly_service.dart';
+import 'vision_threat_service.dart';
 
 class AIOrchestrator {
   static final AIOrchestrator _instance = AIOrchestrator._internal();
@@ -15,7 +18,16 @@ class AIOrchestrator {
   final _stateController = StreamController<AIState>.broadcast();
   Stream<AIState> get stateStream => _stateController.stream;
 
+  final AudioAiService _audioAiService = AudioAiService();
+  final RouteAnomalyService _routeAnomalyService = RouteAnomalyService();
+  final VisionThreatService _visionThreatService = VisionThreatService();
+
   void start(ServiceInstance service) {
+    // Initialize AI Services
+    _audioAiService.initialize();
+    _routeAnomalyService.initialize();
+    // Vision service needs a camera, typically initialized in UI, but we prep it here
+    
     // Event Loop: Polls sensor fusion state every 5 seconds
     Timer.periodic(const Duration(seconds: 5), (timer) async {
       await _orchestrate(service);

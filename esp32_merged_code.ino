@@ -1,4 +1,5 @@
 #include <WiFi.h>
+#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <TinyGPS++.h>
 #include <HardwareSerial.h>
@@ -35,8 +36,8 @@ class MyServerCallbacks: public BLEServerCallbacks {
 };
 
 // ================= WIFI =================
-const char* ssid = "iqoo1234";
-const char* password = "hello123";
+const char* ssid = "@@@@";
+const char* password = "9875622802";
 
 String firebaseURL = "https://esp32iotproject-e9fe1-default-rtdb.asia-southeast1.firebasedatabase.app";
 
@@ -122,20 +123,11 @@ void readMPU();
 void sendLoRaSOS(float lat, float lng);
 void updateLED();
 
-void setup() {
+// ================= BLE TAG-TEAMING =================
+// Because the ESP32 doesn't have enough RAM to run BLE and HTTPS at the same time,
+// we temporarily turn off BLE while making internet requests to free 40KB of memory!
 
-  Serial.begin(115200);
-  gpsSerial.begin(9600, SERIAL_8N1, 16, 17);
-
-  pinMode(SOS_BUTTON, INPUT_PULLUP);
-  attachInterrupt(digitalPinToInterrupt(SOS_BUTTON), buttonISR, FALLING);
-
-  pinMode(LED_GREEN, OUTPUT);
-  pinMode(LED_RED, OUTPUT);
-  digitalWrite(LED_GREEN, LOW);
-  digitalWrite(LED_RED, LOW);
-
-  // ================= BLE INITIALIZATION =================
+void startBLE() {
   BLEDevice::init("Sentinel");
   pServer = BLEDevice::createServer();
   pServer->setCallbacks(new MyServerCallbacks());
@@ -154,18 +146,78 @@ void setup() {
   pAdvertising->setScanResponse(false);
   pAdvertising->setMinPreferred(0x0);
   BLEDevice::startAdvertising();
-  Serial.println("BLE Ready - Waiting for App Connection");
+  Serial.println("BLE Started - Waiting for App Connection");
+}
 
+void stopBLE() {
+  if (deviceConnected) {
+    pServer->disconnect(pServer->getConnId());
+    delay(100);
+  }
+  // Remove deinit to prevent Guru Meditation Error crash!
+  // BLEDevice::deinit(false); 
+  deviceConnected = false;
+  Serial.println("BLE Paused to free memory for HTTPS...");
+}
+
+void setup() {
+  Serial.begin(115200);
+  gpsSerial.begin(9600, SERIAL_8N1, 16, 17);
+
+  pinMode(SOS_BUTTON, INPUT_PULLUP);
+  attachInterrupt(digitalPinToInterrupt(SOS_BUTTON), buttonISR, FALLING);
+
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_RED, LOW);
+
+  // ================= WIFI INITIALIZATION FIRST =================
   WiFi.begin(ssid, password);
   Serial.print("Connecting to WiFi");
 
-  while (WiFi.status() != WL_CONNECTED) {
+  int retries = 0;
+  // Try for 10 seconds (20 * 500ms)
+  while (WiFi.status() != WL_CONNECTED && retries < 20) {
     delay(500);
     Serial.print(".");
+    retries++;
   }
 
-  Serial.println("\nConnected to WiFi");
-  wifiReady = true;
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\nConnected to WiFi");
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+    
+    wifiReady = true;
+
+    // DIAGNOSTIC: Test if ESP32 actually has internet access
+    Serial.print("Testing Internet Connection... ");
+    WiFiClient testClient;
+    if (testClient.connect("google.com", 80)) {
+      Serial.println("SUCCESS! Internet is reachable.");
+      testClient.stop();
+    } else {
+      Serial.println("FAILED! The ESP32 is blocked from the internet by your router!");
+    }
+
+    // Core 3.x NetworkClientSecure requires system time for TLS
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+    Serial.print("Waiting for NTP time sync");
+    time_t now = time(nullptr);
+    int ntp_retries = 0;
+    while (now < 1000000 && ntp_retries < 10) {
+      delay(500);
+      Serial.print(".");
+      now = time(nullptr);
+      ntp_retries++;
+    }
+    Serial.println("\nTime Synced!");
+
+  } else {
+    Serial.println("\nWiFi failed! Continuing in OFFLINE mode (BLE + LoRa only)...");
+    wifiReady = false;
+  }
 
   // Initialize MPU6500
   Wire.begin(21, 22);
@@ -196,6 +248,9 @@ void setup() {
     Serial.println("LoRa Ready");
     loraReady = true;
   }
+
+  // Start BLE
+  startBLE();
 }
 
 // ================= STOP HELPER =================
@@ -207,6 +262,15 @@ void performStop(String source) {
   freeFallDetected = false;
   impactDetected = false;
   Serial.println(source + " → SOS STOPPED");
+
+  if (deviceConnected) {
+    pCharacteristic->setValue("3"); // 3 = Stop Recording Command
+    pCharacteristic->notify();
+    // CRITICAL: Give the BLE radio time to physically transmit "3" to the phone
+    // before we run sendIdleStatus() which may block!
+    delay(500); 
+  }
+
   sendIdleStatus();
 }
 
@@ -469,28 +533,39 @@ void sendLoRaSOS(float lat, float lng) {
 // ================= TELEGRAM (WITH TIMEOUT) =================
 void sendTelegramAlert(String message) {
   if (WiFi.status() == WL_CONNECTED) {
+    // stopBLE(); 
     message.replace("\n", "\\n");
     for (int i = 0; i < totalContacts; i++) {
+      WiFiClientSecure client;
+      client.setInsecure();
       HTTPClient http;
       String url = "https://api.telegram.org/bot" + botToken + "/sendMessage";
       http.setTimeout(HTTP_TIMEOUT);
-      http.begin(url);
+      http.begin(client, url);
       http.addHeader("Content-Type", "application/json");
       String postData = "{\"chat_id\":\"" + chatIDs[i] + "\", \"text\":\"" + message + "\"}";
       int code = http.POST(postData);
-      Serial.println("Telegram [" + String(i) + "] → " + String(code));
+      if (code < 0) {
+        Serial.println("Telegram [" + String(i) + "] → -1");
+      } else {
+        Serial.println("Telegram [" + String(i) + "] → " + String(code));
+      }
       http.end();
     }
+    // startBLE(); 
   }
 }
 
 // ================= FIREBASE ACTIVE (WITH TIMEOUT) =================
 void sendActiveData() {
   if (WiFi.status() == WL_CONNECTED) {
+    // stopBLE(); 
+    WiFiClientSecure client;
+    client.setInsecure();
     HTTPClient http;
-    String url = firebaseURL + "/device001.json";
+    String url = firebaseURL + "/devices/device001.json";
     http.setTimeout(HTTP_TIMEOUT);
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     String jsonData = "{";
     jsonData += "\"status\":\"ACTIVE\",";
@@ -498,45 +573,66 @@ void sendActiveData() {
     jsonData += "\"lat\":" + String(lat, 6) + ",";
     jsonData += "\"lng\":" + String(lng, 6);
     jsonData += "}";
-    int httpResponseCode = http.PUT(jsonData);
-    Serial.println("Firebase → " + String(httpResponseCode));
+    int code = http.PUT(jsonData);
+    if (code < 0) {
+      Serial.println("Firebase → -1");
+    } else {
+      Serial.println("Firebase → " + String(code));
+    }
     http.end();
+    // startBLE(); 
   }
 }
 
 // ================= FIREBASE NO GPS (WITH TIMEOUT) =================
 void sendActiveWithoutGPS() {
   if (WiFi.status() == WL_CONNECTED) {
+    // stopBLE(); 
+    WiFiClientSecure client;
+    client.setInsecure();
     HTTPClient http;
-    String url = firebaseURL + "/device001.json";
+    String url = firebaseURL + "/devices/device001.json";
     http.setTimeout(HTTP_TIMEOUT);
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     String jsonData = "{";
     jsonData += "\"status\":\"ACTIVE\",";
     jsonData += "\"deviceID\":1,";
     jsonData += "\"gps\":\"NO_SIGNAL\"";
     jsonData += "}";
-    int httpResponseCode = http.PUT(jsonData);
-    Serial.println("Firebase → " + String(httpResponseCode));
+    int code = http.PUT(jsonData);
+    if (code < 0) {
+      Serial.println("Firebase → -1");
+    } else {
+      Serial.println("Firebase → " + String(code));
+    }
     http.end();
+    // startBLE(); 
   }
 }
 
 // ================= FIREBASE IDLE (WITH TIMEOUT) =================
 void sendIdleStatus() {
   if (WiFi.status() == WL_CONNECTED) {
+    // stopBLE(); 
+    WiFiClientSecure client;
+    client.setInsecure();
     HTTPClient http;
-    String url = firebaseURL + "/device001.json";
+    String url = firebaseURL + "/devices/device001.json";
     http.setTimeout(HTTP_TIMEOUT);
-    http.begin(url);
+    http.begin(client, url);
     http.addHeader("Content-Type", "application/json");
     String jsonData = "{";
     jsonData += "\"status\":\"IDLE\",";
     jsonData += "\"deviceID\":1";
     jsonData += "}";
-    int httpResponseCode = http.PUT(jsonData);
-    Serial.println("Firebase → " + String(httpResponseCode));
+    int code = http.PUT(jsonData);
+    if (code < 0) {
+      Serial.println("Firebase → -1");
+    } else {
+      Serial.println("Firebase → " + String(code));
+    }
     http.end();
+    // startBLE(); 
   }
 }

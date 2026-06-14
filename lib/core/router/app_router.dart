@@ -18,17 +18,20 @@ class AppRouter {
       ),
       GoRoute(
         path: '/sender',
-        pageBuilder: (context, state) => CustomTransitionPage(
-          child: const SenderModeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) {
-            return SlideTransition(
-              position: animation.drive(
-                Tween(begin: const Offset(0, 1), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic)),
-              ),
-              child: FadeTransition(opacity: animation, child: child),
-            );
-          },
-        ),
+        pageBuilder: (context, state) {
+          final autoStart = state.uri.queryParameters['auto_start'] == 'true';
+          return CustomTransitionPage(
+            child: SenderModeScreen(autoStartRecording: autoStart),
+            transitionsBuilder: (context, animation, secondaryAnimation, child) {
+              return SlideTransition(
+                position: animation.drive(
+                  Tween(begin: const Offset(0, 1), end: Offset.zero).chain(CurveTween(curve: Curves.easeOutCubic)),
+                ),
+                child: FadeTransition(opacity: animation, child: child),
+              );
+            },
+          );
+        },
       ),
       GoRoute(
         path: '/radar',

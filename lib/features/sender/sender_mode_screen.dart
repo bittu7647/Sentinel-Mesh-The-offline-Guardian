@@ -9,12 +9,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text_styles.dart';
 import '../../services/ai_service.dart';
 import '../../services/fall_detection_service.dart';
-import '../../core/animations/staggered_list_animation.dart';
 import 'widgets/sos_pulse_button.dart';
 import 'widgets/fall_detection_toggle.dart';
 
 class SenderModeScreen extends StatefulWidget {
-  const SenderModeScreen({super.key});
+  final bool autoStartRecording;
+  const SenderModeScreen({super.key, this.autoStartRecording = false});
 
   @override
   State<SenderModeScreen> createState() => _SenderModeScreenState();
@@ -27,6 +27,9 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
   bool _fallDetected = false;
   FallDetectionService? _fallDetectionService;
   StreamSubscription? _sosSub;
+  StreamSubscription? _stopSub;
+  String? _aiReport;
+  bool _isAnalyzing = false;
 
   @override
   void initState() {
@@ -35,11 +38,34 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
 
     // Hardware Trigger Listener
     _sosSub = FlutterBackgroundService().on('sos_triggered').listen((_) {
+      debugPrint("🚨 UI: Received sos_triggered event from Background Service");
       if (mounted && !_isRecording) {
-        debugPrint("🚨 Hardware SOS detected on Sender screen! Triggering camera...");
-        _triggerSOS();
+        // We wait for camera to initialize if it hasn't yet
+        _triggerSOSWithRetry();
       }
     });
+
+    _stopSub = FlutterBackgroundService().on('sos_stopped').listen((_) {
+      debugPrint("🚨 UI: Received sos_stopped event from Background Service");
+      if (mounted && _isRecording) {
+         _triggerSOS(); // Toggles recording off
+      }
+    });
+  }
+
+  /// Retries SOS trigger if camera is still initializing
+  void _triggerSOSWithRetry() async {
+    int attempts = 0;
+    while (attempts < 10) {
+      if (_cameraController != null && _cameraController!.value.isInitialized) {
+        _triggerSOS();
+        return;
+      }
+      debugPrint("⏳ Waiting for camera to initialize before SOS...");
+      await Future.delayed(const Duration(milliseconds: 500));
+      attempts++;
+    }
+    debugPrint("❌ Failed to trigger hardware SOS: Camera timed out.");
   }
 
   Future<void> _initCamera() async {
@@ -49,7 +75,12 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
 
       _cameraController = CameraController(cameras[0], ResolutionPreset.medium, enableAudio: true);
       await _cameraController!.initialize();
-      if (mounted) setState(() {});
+      if (mounted) {
+        setState(() {});
+        if (widget.autoStartRecording) {
+            _triggerSOSWithRetry();
+        }
+      }
     } catch (e) {
       debugPrint("Camera Error: $e");
     }
@@ -58,6 +89,7 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
   @override
   void dispose() {
     _sosSub?.cancel();
+    _stopSub?.cancel();
     _stopFallDetection();
     _cameraController?.dispose();
     super.dispose();
@@ -91,12 +123,26 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
     _triggerSOS();
   }
 
-  String? _aiReport;
-  bool _isAnalyzing = false;
-
   void _generateAIReport(String path) async {
     setState(() => _isAnalyzing = true);
     final report = await AIService.generateVideoReport(path);
+    
+    // Automatically store the generated report in Firebase
+    try {
+      final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high).timeout(const Duration(seconds: 5), onTimeout: () => Position(longitude: 0, latitude: 0, timestamp: DateTime.now(), accuracy: 0, altitude: 0, altitudeAccuracy: 0, heading: 0, headingAccuracy: 0, speed: 0, speedAccuracy: 0));
+      await FirebaseDatabase.instance.ref('incident_reports').push().set({
+        'timestamp': DateTime.now().toIso8601String(),
+        'report': report,
+        'video_local_path': path,
+        'lat': pos.latitude,
+        'lng': pos.longitude,
+        'status': 'auto_generated'
+      });
+      debugPrint("✅ Report saved to Firebase successfully.");
+    } catch (e) {
+      debugPrint("❌ Failed to save report to Firebase: $e");
+    }
+
     if (mounted) {
       setState(() {
         _aiReport = report;
@@ -105,21 +151,40 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
     }
   }
 
+  bool _isStartingRecording = false;
+
   Future<void> _triggerSOS() async {
-    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    if (_cameraController == null || !_cameraController!.value.isInitialized) {
+      debugPrint("❌ TriggerSOS Failed: Camera not ready.");
+      return;
+    }
 
     HapticFeedback.heavyImpact();
 
-    if (!_isRecording) {
+    if (!_isRecording && !_isStartingRecording) {
+      _isStartingRecording = true;
       // CRITICAL FIX: Stop image stream (Fall Detection) before starting video recording
-      // Android camera cannot handle both simultaneously.
       if (_fallDetectionEnabled) {
-        await _cameraController?.stopImageStream();
+        try { await _cameraController?.stopImageStream(); } catch (_) {}
       }
 
       _aiReport = null; // Clear old report
-      await _cameraController!.startVideoRecording();
-      setState(() => _isRecording = true);
+      
+      try {
+        debugPrint("⏳ Hardware warmup for video recording...");
+        await Future.delayed(const Duration(milliseconds: 1500)); 
+        await _cameraController!.startVideoRecording();
+        setState(() => _isRecording = true);
+        debugPrint("✅ Recording started successfully");
+      } catch (e) {
+        debugPrint("❌ CRITICAL ERROR starting video recording: $e");
+        // If it fails because it's already recording, just update state
+        if (e.toString().contains('already recording')) {
+           setState(() => _isRecording = true);
+        }
+      } finally {
+        _isStartingRecording = false;
+      }
 
       try {
         final pos = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.high).timeout(const Duration(seconds: 5));
@@ -135,18 +200,30 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
           'timestamp': DateTime.now().millisecondsSinceEpoch,
         });
       }
-    } else {
-      final file = await _cameraController!.stopVideoRecording();
+    } else if (_isRecording) {
+      // CRITICAL FIX: Instantly update the UI so the user sees it stop immediately
       setState(() => _isRecording = false);
+      
+      XFile? file;
+      try {
+        debugPrint("⏳ Attempting to stop camera recording...");
+        // Add timeout to prevent camera plugin deadlock
+        file = await _cameraController!.stopVideoRecording().timeout(const Duration(seconds: 3));
+        debugPrint("✅ Camera recording stopped successfully");
+      } catch (e) {
+        debugPrint("❌ Error/Timeout stopping video recording: $e");
+      }
 
       // Resume Fall Detection if it was enabled
       if (_fallDetectionEnabled) {
         _startFallDetection();
       }
 
-      await FirebaseDatabase.instance.ref('devices/device001').update({'status': 'IDLE'});
+      try {
+        await FirebaseDatabase.instance.ref('devices/device001').update({'status': 'IDLE'});
+      } catch (_) {}
 
-      if (mounted) {
+      if (mounted && file != null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text("Recording ended. AI Analysis starting...")),
         );
@@ -223,7 +300,31 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
                       Padding(
                         padding: const EdgeInsets.only(top: 24),
                         child: ElevatedButton.icon(
-                          onPressed: () {}, // Future: Share report functionality
+                          onPressed: () async {
+                            // Forward report to higher officials via Firebase
+                            try {
+                              await FirebaseDatabase.instance.ref('official_escalations').push().set({
+                                'timestamp': DateTime.now().toIso8601String(),
+                                'report': _aiReport,
+                                'status': 'escalated_to_police'
+                              });
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('✅ Report forwarded to higher officials securely.', style: TextStyle(color: Colors.white)),
+                                    backgroundColor: Colors.green,
+                                  ),
+                                );
+                                setState(() => _aiReport = null); // Close the report overlay
+                              }
+                            } catch (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('❌ Failed to forward report. Check connection.')),
+                                );
+                              }
+                            }
+                          },
                           icon: const Icon(Icons.share_rounded),
                           label: const Text("FORWARD TO OFFICIALS"),
                           style: ElevatedButton.styleFrom(
@@ -238,6 +339,21 @@ class _SenderModeScreenState extends State<SenderModeScreen> {
                 ),
               ),
             ),
+
+          // Header (Simple close button only)
+          SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+              child: Row(
+                children: [
+                  IconButton(
+                    icon: const Icon(Icons.close_rounded, color: Colors.white, size: 28),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+          ),
 
           // Bottom Controls
           Positioned(
