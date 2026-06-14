@@ -8,7 +8,6 @@ Sentinel Mesh utilizes a highly redundant, multi-provider AI engine to analyze e
 
 - **Groq (Llama 3.3 70B & Llama 3.1 8B)**: Provides blazing-fast text-based incident report generation and situational reasoning.
 - **Gemini (2.0 Flash & 1.5 Flash)**: Analyzes video and image evidence captured during an SOS to determine threat severity, weapon presence, and environment details.
-- **Multi-Tier Fallback System**: If video analysis fails or quotas are depleted, the system cascades automatically to lighter text models or offline hardcoded reports, ensuring an emergency report is always generated.
 - **YOLO Vision Threat Detection**: On-device machine learning for detecting weapons and anomalies directly from the live camera feed.
 - **Audio AI Service**: Analyzes ambient sounds (screams, sirens) to provide immediate context to the emergency.
 - **Route Anomaly Service**: AI-powered detection of sudden route deviations or unsafe detours during travel.
